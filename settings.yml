@@ -1,0 +1,15 @@
+---
+  vehicle: Mitsubishi Evolution
+  must-contain: 
+    - evo
+  dont-contain: 
+    - rear
+    - front
+    - trunk
+    - hood
+  locations:
+    - portland
+    - la
+  daysSinceListed: 7
+  sortBy: creation_time_descend
+  
