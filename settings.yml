@@ -1,4 +1,7 @@
 ---
+  email: email@mail.com
+  password: password
+
   vehicle: Mitsubishi Evolution
   must-contain: 
     - evo
