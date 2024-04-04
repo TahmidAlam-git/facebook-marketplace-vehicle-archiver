@@ -12,7 +12,6 @@
     - hood
   locations:
     - portland
-    - la
-  daysSinceListed: 7
-  sortBy: creation_time_descend
+  days-since-listed: 7
+  sort-by: creation_time_descend
   
