@@ -8,10 +8,78 @@
   dont-contain: 
     - rear
     - front
+    - wheel
     - trunk
     - hood
+    - bumper
+    - exhaust
+    - spring
+    - part
+    - harness
+    - clutch
+    - spoiler
+    - light
+    - gauge
+    - side
+    - intercooler
+    - fuel
+    - toy
+    - jada
+    - wide
+    - kit
+    - oil
+    - airbag
+    - boost
+    - turbo
+    - screen
+    - wing
+    - vland
+    - accessport
+    - delete
+    - mount
+    - tablet
+    - subwoofer
+    - livery
+    - '1:'
+    - seat
+    - recarro
+    - engine
+    - miles
+    - block
+    - header
+    - intake
+    - cobb
+    - door
+    - 1/
+    - brake
+    - catalytic
+    - suspension
+    - transfer
+    - cage
+    - cover
+    - injector
+    - fender
+    - transmission
+    - tire
+    - interior
+    - oem
+    - downpipe
+    - ecu
+    - radiator
+    - belt
+    - motor
+    - sensor
+    - cable
+    - 8/9
   locations:
     - portland
-  days-since-listed: 7
-  sort-by: creation_time_descend
+    - la
+    - '108129565875623' # Colorodo
+    - '109613652398861' # Montana
+    - '114148045261892' # Texas
+    - '106171882747436' # Wisconsin
+    - '112442175434378' # Georgia
+    - '113333232014461' # New York
+  days-since-listed: 1 # 1, 7, 30
+  sort-by: creation_time_descend # creation_time_descend, 
   

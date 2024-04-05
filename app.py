@@ -2,6 +2,7 @@ from playwright.sync_api import sync_playwright
 import yaml
 import json
 import os
+from bs4 import BeautifulSoup
 
 BASE_URL = 'https://www.facebook.com'
 settings_file_name = 'settings.yml'
@@ -26,8 +27,37 @@ def scroll_to_bottom(page):
     while prev_height != page.evaluate('(window.innerHeight + window.scrollY)'):
         prev_height = page.evaluate('(window.innerHeight + window.scrollY)')
         page.mouse.wheel(0, 150000)
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(3000)
         page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(1000)
+
+def get_matching_posts(page):
+    parsed = []
+    soup = BeautifulSoup(page.content(), 'html.parser')
+
+    # Iterate through all the listings and keep the ones that match the criteria
+    listings = soup.find_all('div', class_='x9f619 x78zum5 x1r8uery xdt5ytf x1iyjqo2 xs83m0k x1e558r4 x150jy0e x1iorvi4 xjkvuk6 xnpuxes x291uyu x1uepa24')
+    for listing in listings:
+        try:
+            image = listing.find('img', class_='xt7dq6l xl1xv1r x6ikm8r x10wlt62 xh8yej3')['src']
+            title = listing.find('span', 'x1lliihq x6ikm8r x10wlt62 x1n2onr6').text
+            price = listing.find('span', 'x193iq5w xeuugli x13faqbe x1vvkbs x1xmvt09 x1lliihq x1s928wv xhkezso x1gmr53x x1cpjm7i x1fgarty x1943h6x xudqn12 x676frb x1lkfr7t x1lbecb7 x1s688f xzsf02u').text
+            post_url = listing.find('a', class_='x1i10hfl xjbqb8w x1ejq31n xd10rxx x1sy0etr x17r0tee x972fbf xcfux6l x1qhh985 xm0m39n x9f619 x1ypdohk xt0psk2 xe8uvvx xdj266r x11i5rnm xat24cr x1mh8g0r xexx8yu x4uap5 x18d9i69 xkhd6sd x16tdsg8 x1hl2dhg xggy1nq x1a2a7pz x1heor9g x1lku1pv')['href']
+            location = listing.find('span', 'x1lliihq x6ikm8r x10wlt62 x1n2onr6 xlyipyv xuxw1ft x1j85h84').text
+            
+            # keep the posts that match
+            if all(string.lower() in title.lower() for string in settings['must-contain']) and all(string.lower() not in title.lower() for string in settings['dont-contain']):
+                parsed.append({
+                    'image': image,
+                    'title': title,
+                    'price': price,
+                    'post_url': post_url,
+                    'location': location
+                })
+        except Exception as e:
+            print("something went wrong with extracting data from the listing:", e)
+
+    return parsed
 
 def main():
     with sync_playwright() as pw:
@@ -35,12 +65,24 @@ def main():
         page = browser.new_page()
         login(page)
 
+        posts = []
         for location in settings['locations']:
-            page.goto(f"{BASE_URL}/marketplace/{location}/search?daysSinceListed={settings['days-since-listed']}&sortBy={settings['sort-by']}&query={settings['vehicle']}&exact=false&radius=805")
-            page.wait_for_load_state("networkidle")
+            for status in ['', 'availability=out of stock&']: # go through sold and non sold items
 
-            scroll_to_bottom(page)
-            
+                page.goto(f"{BASE_URL}/marketplace/{location}/search?{status}daysSinceListed={settings['days-since-listed']}&sortBy={settings['sort-by']}&query={settings['vehicle']}&exact=false&radius=805")
+                page.wait_for_load_state("networkidle")
+                page.wait_for_timeout(5000)
+
+                scroll_to_bottom(page)
+                page.wait_for_load_state("networkidle")
+
+                posts.extend(get_matching_posts(page))
+
+        # print results
+        for x, post in enumerate(posts):
+            print(x, post)
+        print('count', len(posts))
+
         page.wait_for_timeout(60000)
 
 if __name__ == '__main__':
