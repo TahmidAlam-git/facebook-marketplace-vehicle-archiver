@@ -91,7 +91,7 @@ def root():
 
 @app.get("/scrape")
 def get_basic_listings():
-    """ with open('sample.json', 'r') as file:
+    """ with open('sample2.json', 'r') as file:
         return json.load(file) """
 
     with sync_playwright() as pw:
@@ -125,8 +125,30 @@ def get_basic_listings():
     
 @app.post("/archive")
 def archive_listings(item: Item):
-    # TODO archive the posts
-    print(item.payload)
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=False)
+        page = browser.new_page()
+        login(page)
+
+        for listing in item.payload:
+            if not listing['real']:
+                continue
+
+            # go to the listing page
+            page.goto(f"{BASE_URL}{listing['post_url']}")
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(1000)
+
+            # save the listing if not already saved
+            button = page.get_by_role('button', name="Save", pressed=False)
+            if button.is_visible():
+                button.click()
+                print('saved', listing['post_url'])
+            else:
+                print('already saved', listing['post_url'])
+        
+        browser.close()
+
     return {'response': 'temp'}
 
 if __name__ == '__main__':
