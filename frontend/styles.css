@@ -1,0 +1,42 @@
+
+* {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.container-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr); /* 4 columns with equal width */
+    gap: 20px; /* gap between columns */
+  }
+  
+  .item-container {
+    /* Ensure all containers have the same size */
+    width: 95%; /* 25% width for each container minus the gap */
+    padding: 10px; /* optional: add padding inside each container */
+    background-color: green;
+    border-radius: 25px;
+  }
+  
+  /* Optional: Style individual elements inside the container */
+  .item-container img {
+    max-width: 100%; /* Ensure images don't exceed container width */
+    border-radius: 17px;
+  }
+  
+  .item-container h2 {
+    font-size: 18px;
+  }
+  
+  .item-container p {
+    margin: 5px 0;
+  }
+  
+  .item-container a {
+    text-decoration: none;
+    color: blue;
+  }
+  
+  .item-container a:hover {
+    text-decoration: underline;
+  }
+  

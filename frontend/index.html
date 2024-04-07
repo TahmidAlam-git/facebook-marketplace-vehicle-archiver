@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles.css">
+    <title>Facebook Marketplace Vehicle Archiver</title>
+</head>
+
+<body>
+
+    <h1>Facebook Marketplace Vehicle Archiver</h1>
+
+    <button onclick="getListings()">Get listings</button>
+    <button onclick="archive()">Archive</button>
+    <p id="archive-result"> google sheets formatted response here </p>
+    <div class="container-grid"> </div>
+
+    <script>
+        var listings = []
+
+        async function archive() {
+            var response = await fetch('http://127.0.0.1:8000/archive', {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({"payload": listings})
+            });
+            if (!response.ok) throw new Error('Network response was not ok', 'archive');
+
+            response = await response.json();
+            document.getElementById('archive-result').textContent = JSON.stringify(response);
+        }
+    
+        async function getListings() {
+
+            const response = await fetch('http://127.0.0.1:8000/scrape');
+            if (!response.ok) throw new Error('Network response was not ok', 'scrape');
+            listings = await response.json();
+
+            for(let i = 0; i < listings.length; i++) {
+                
+                var listing = listings[i];
+                console.log(i, listing);
+                // Create container element
+                var container = document.createElement('div');
+                container.classList.add('item-container');
+
+                // Create image element
+                var image = document.createElement('img');
+                image.src = listing.image;
+
+                // Create title element
+                var title = document.createElement('h2');
+                title.textContent = listing.title;
+
+                // Create price element
+                var price = document.createElement('p');
+                price.textContent = listing.price;
+
+                // Create link element for post URL
+                var link = document.createElement('a');
+                link.href = "https://facebook.com/" + listing.post_url;
+                link.textContent = "View Post";
+
+                // Create location element
+                var location = document.createElement('p');
+                location.textContent = listing.location;
+
+                // Create boolean indicator for 'real' in the form of the background color
+                if (!listing.real) {
+                    container.style.backgroundColor = 'red'
+                }
+
+                // Append elements to container
+                container.appendChild(image);
+                container.appendChild(title);
+                container.appendChild(price);
+                container.appendChild(link);
+                container.appendChild(location);
+
+                container.id = i;
+
+                container.addEventListener('click', function () {
+                    if (listings[this.id].real) {
+                        listings[this.id].real = false;
+                        document.getElementById(this.id).style.backgroundColor = 'red'
+                    } else {
+                        listings[this.id].real = true;
+                        document.getElementById(this.id).style.backgroundColor = 'green'
+                    }
+                    console.log('Container clicked!', this.id, listings[this.id].real);
+                });
+
+                // Append container to the document body or another parent element
+                document.getElementsByClassName('container-grid')[0].appendChild(container);
+            }
+        
+        }
+
+    </script>
+
+</body>
+
+</html>

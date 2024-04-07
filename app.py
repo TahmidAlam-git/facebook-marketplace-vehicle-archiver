@@ -3,6 +3,24 @@ import yaml
 import json
 import os
 from bs4 import BeautifulSoup
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+import re
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class Item(BaseModel, extra="allow"):
+    payload: list[dict]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Set this to the origin(s) from which you want to allow requests, or use ["*"] to allow all origins.
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Set the HTTP methods you want to allow.
+    allow_headers=["*"],  # Set the HTTP headers you want to allow.
+)
 
 BASE_URL = 'https://www.facebook.com'
 settings_file_name = 'settings.yml'
@@ -27,7 +45,7 @@ def scroll_to_bottom(page):
     while prev_height != page.evaluate('(window.innerHeight + window.scrollY)'):
         prev_height = page.evaluate('(window.innerHeight + window.scrollY)')
         page.mouse.wheel(0, 150000)
-        page.wait_for_timeout(3000)
+        page.wait_for_timeout(1500)
         page.wait_for_load_state("networkidle")
         page.wait_for_timeout(1000)
 
@@ -59,7 +77,23 @@ def get_matching_posts(page):
 
     return parsed
 
-def main():
+def pre_filter(posts):
+    for post in posts:
+        price = re.sub("[^0-9]", "", post['price'])
+        if price == '' or int(price) <= 1234 or int(price) >= 100000:
+            post['real'] = False
+        else:
+            post['real'] = True
+
+@app.get('/')
+def root():
+    return {'message': 'temporary root message'}
+
+@app.get("/scrape")
+def get_basic_listings():
+    """ with open('sample.json', 'r') as file:
+        return json.load(file) """
+
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=False)
         page = browser.new_page()
@@ -68,22 +102,36 @@ def main():
         posts = []
         for location in settings['locations']:
             for status in ['', 'availability=out of stock&']: # go through sold and non sold items
-
+                
+                # Go to the search page
                 page.goto(f"{BASE_URL}/marketplace/{location}/search?{status}daysSinceListed={settings['days-since-listed']}&sortBy={settings['sort-by']}&query={settings['vehicle']}&exact=false&radius=805")
                 page.wait_for_load_state("networkidle")
-                page.wait_for_timeout(5000)
+                page.wait_for_timeout(3000)
 
+                # Load all the results
                 scroll_to_bottom(page)
                 page.wait_for_load_state("networkidle")
 
+                # Get the results
                 posts.extend(get_matching_posts(page))
+        pre_filter(posts)
 
         # print results
         for x, post in enumerate(posts):
             print(x, post)
         print('count', len(posts))
 
-        page.wait_for_timeout(60000)
+        return posts
+    
+@app.post("/archive")
+def archive_listings(item: Item):
+    # TODO archive the posts
+    print(item.payload)
+    return {'response': 'temp'}
 
 if __name__ == '__main__':
-    main()
+    uvicorn.run(
+        'app:app',
+        host='127.0.0.1',
+        port=8000
+    )

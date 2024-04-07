@@ -71,6 +71,19 @@
     - sensor
     - cable
     - 8/9
+    - struts
+    - camshaft
+    - gear
+    - tuning
+    - Cylinder
+    - Service
+    - Conditioning
+    - Stroker
+    - cluster
+    - carbon
+    - housing
+    - pajero
+    - battery
   locations:
     - portland
     - la
@@ -80,6 +93,6 @@
     - '106171882747436' # Wisconsin
     - '112442175434378' # Georgia
     - '113333232014461' # New York
-  days-since-listed: 1 # 1, 7, 30
+  days-since-listed: 7 # 1, 7, 30
   sort-by: creation_time_descend # creation_time_descend, 
   
