@@ -49,6 +49,80 @@ def scroll_to_bottom(page):
         page.wait_for_load_state("networkidle")
         page.wait_for_timeout(1000)
 
+def soup_find(soup: BeautifulSoup, type: str, class_name: str):
+    if soup == None:
+        return ''
+    res = soup.find(type, class_=class_name)
+    return res.text if res != None else ''
+
+def get_post_details(page):
+
+    result = {'description': '', 'title': '', 'year': '', 'price': '', 'date': '', 'location': '', 'mileage': '', 'color': '', 'seller': '', 'images': [], 'sold': False}
+
+    # open the full description
+    description_button = page.get_by_role("button", name="See more")
+    if description_button.is_visible():
+        description_button.click()
+        page.wait_for_timeout(500)
+
+    soup = BeautifulSoup(page.content(), 'html.parser')
+
+    # get description
+    result['description'] = soup_find(soup, 'div', 'xz9dl7a x4uap5 xsag5q8 xkhd6sd x126k92a')
+
+    # get title
+    header = soup.find('div', class_='xyamay9 x1pi30zi x18d9i69 x1swvt13')
+    result['title'] = soup_find(header, 'span', 'x193iq5w xeuugli x13faqbe x1vvkbs x1xmvt09 x1lliihq x1s928wv xhkezso x1gmr53x x1cpjm7i x1fgarty x1943h6x x14z4hjw x3x7a5m xngnso2 x1qb5hxa x1xlr1w8 xzsf02u')
+
+    # get model year
+    year = re.search(r'(\d\d\d\d)', result['title'])
+    result['year'] = year.group(1) if year else ''
+
+    # Sold status
+    result['sold'] = 'sold' in result['title'].lower() or 'pending' in result['title'].lower()
+
+    # get price
+    result['price'] = soup_find(header, 'span', 'x193iq5w xeuugli x13faqbe x1vvkbs x1xmvt09 x1lliihq x1s928wv xhkezso x1gmr53x x1cpjm7i x1fgarty x1943h6x xudqn12 x676frb x1lkfr7t x1lbecb7 x1s688f xzsf02u')
+    if result['price'] == '':
+        price = soup_find(header, 'span', 'x193iq5w xeuugli x13faqbe x1vvkbs x1xmvt09 x1lliihq x1s928wv xhkezso x1gmr53x x1cpjm7i x1fgarty x1943h6x xudqn12 x676frb x1lkfr7t x1lbecb7 xk50ysn xzsf02u')
+        price = re.search(r'\$(\d+(,\d+)?)', price)
+        result['price'] = price.group(1) if price else ''
+
+    # get date
+    result['date'] = soup_find(header, 'span', 'html-span xdj266r x11i5rnm xat24cr x1mh8g0r xexx8yu x4uap5 x18d9i69 xkhd6sd x1hl2dhg x16tdsg8 x1vvkbs')
+    
+    # get location
+    result['location'] = soup_find(header, 'span', 'x193iq5w xeuugli x13faqbe x1vvkbs x1xmvt09 x1nxh6w3 x1sibtaa xo1l8bm xi81zsa')
+
+    spans = soup.find_all('span', class_='x193iq5w xeuugli x13faqbe x1vvkbs x1xmvt09 x1lliihq x1s928wv xhkezso x1gmr53x x1cpjm7i x1fgarty x1943h6x xudqn12 x3x7a5m x6prxxf xvq8zen xo1l8bm xzsf02u')
+    if len(spans) > 0:
+        # get mileage
+        mileage = [span for span in spans if 'Driven' in span.text]
+        mileage = mileage[0].text if len(mileage) > 0 else ''
+        mileage = re.search(r'Driven (\d+(,\d+)?) miles', mileage)
+        result['mileage'] = mileage.group(1) if mileage else ''
+
+        # get color
+        color = [span for span in spans if 'color' in span.text]
+        color = color[0].text if len(color) > 0 else ''
+        color = re.search(r'Exterior color: (\w+) ?\w*', color)
+        result['color'] = color.group(1) if color else ''
+
+    # get seller name
+    header = soup.find('div', class_='x1lq5wgf xgqcy7u x30kzoy x9jhf4c x1lliihq')
+    if header:
+        result['seller'] = soup_find(header, 'span', 'x193iq5w xeuugli x13faqbe x1vvkbs x1xmvt09 x6prxxf xvq8zen x1s688f xzsf02u')
+
+    # get images
+    image_roll = soup.find('div', class_='x6s0dn4 x78zum5 x193iq5w x1y1aw1k xwib8y2 xu6gjpd x11xpdln x1r7x56h xuxw1ft xc9qbxq')
+    if image_roll:
+        result['images'] = [image['src'] for image in image_roll.find_all('img', class_='x5yr21d xl1xv1r xh8yej3')]
+    else:
+        image = soup.find('img', class_='xz74otr')
+        result['images'] = [image['src']] if image else []
+
+    return result
+
 def get_matching_posts(page):
     parsed = []
     soup = BeautifulSoup(page.content(), 'html.parser')
@@ -137,7 +211,7 @@ def archive_listings(item: Item):
             # go to the listing page
             page.goto(f"{BASE_URL}{listing['post_url']}")
             page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(1000)
+            page.wait_for_timeout(1500)
 
             # save the listing if not already saved
             button = page.get_by_role('button', name="Save", pressed=False)
@@ -146,6 +220,8 @@ def archive_listings(item: Item):
                 print('saved', listing['post_url'])
             else:
                 print('already saved', listing['post_url'])
+
+            print(get_post_details(page))
         
         browser.close()
 
