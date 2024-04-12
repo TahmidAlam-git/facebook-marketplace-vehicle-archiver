@@ -1,13 +1,17 @@
 from playwright.sync_api import sync_playwright
 import yaml
 import json
-import os
 from bs4 import BeautifulSoup
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import re
 from pydantic import BaseModel
+from internetarchive import upload
+import requests
+from io import BytesIO
+import datetime
+
 
 app = FastAPI()
 
@@ -57,7 +61,7 @@ def soup_find(soup: BeautifulSoup, type: str, class_name: str):
 
 def get_post_details(page):
 
-    result = {'description': '', 'title': '', 'year': '', 'price': '', 'date': '', 'location': '', 'mileage': '', 'color': '', 'seller': '', 'images': [], 'sold': False}
+    result = {'url': page.url, 'title': '', 'sold': False, 'year': '', 'price': '', 'date': '', 'location': '', 'mileage': '', 'color': '', 'seller': '', 'description': '', 'images': []}
 
     # open the full description
     description_button = page.get_by_role("button", name="See more")
@@ -70,7 +74,6 @@ def get_post_details(page):
     # get description
     result['description'] = soup_find(soup, 'div', 'xz9dl7a x4uap5 xsag5q8 xkhd6sd x126k92a')
 
-    # get title
     header = soup.find('div', class_='xyamay9 x1pi30zi x18d9i69 x1swvt13')
     result['title'] = soup_find(header, 'span', 'x193iq5w xeuugli x13faqbe x1vvkbs x1xmvt09 x1lliihq x1s928wv xhkezso x1gmr53x x1cpjm7i x1fgarty x1943h6x x14z4hjw x3x7a5m xngnso2 x1qb5hxa x1xlr1w8 xzsf02u')
 
@@ -81,6 +84,10 @@ def get_post_details(page):
     # Sold status
     result['sold'] = 'sold' in result['title'].lower() or 'pending' in result['title'].lower()
 
+    # get title
+    title = re.search(r'(?:.*? · )?(.*)', result['title'])
+    result['title'] = title.group(1) if year else ''
+
     # get price
     result['price'] = soup_find(header, 'span', 'x193iq5w xeuugli x13faqbe x1vvkbs x1xmvt09 x1lliihq x1s928wv xhkezso x1gmr53x x1cpjm7i x1fgarty x1943h6x xudqn12 x676frb x1lkfr7t x1lbecb7 x1s688f xzsf02u')
     if result['price'] == '':
@@ -90,7 +97,14 @@ def get_post_details(page):
 
     # get date
     result['date'] = soup_find(header, 'span', 'html-span xdj266r x11i5rnm xat24cr x1mh8g0r xexx8yu x4uap5 x18d9i69 xkhd6sd x1hl2dhg x16tdsg8 x1vvkbs')
-    
+    date_search = re.search(r'(\d+) (hour|day|week)', result['date'])
+    if date_search.group(2) == 'hour':
+        result['date'] = (datetime.datetime.now() - datetime.timedelta(hours=int(date_search.group(1)))).strftime("%Y-%m-%d")
+    elif date_search.group(2) == 'day':
+        result['date'] = (datetime.datetime.now() - datetime.timedelta(days=int(date_search.group(1)))).strftime("%Y-%m-%d")
+    elif date_search.group(2) == 'week':
+        result['date'] = (datetime.datetime.now() - datetime.timedelta(weeks=int(date_search.group(1)))).strftime("%Y-%m-%d")
+
     # get location
     result['location'] = soup_find(header, 'span', 'x193iq5w xeuugli x13faqbe x1vvkbs x1xmvt09 x1nxh6w3 x1sibtaa xo1l8bm xi81zsa')
 
@@ -165,7 +179,7 @@ def root():
 
 @app.get("/scrape")
 def get_basic_listings():
-    """ with open('sample2.json', 'r') as file:
+    """ with open('sample3.json', 'r') as file:
         return json.load(file) """
 
     with sync_playwright() as pw:
@@ -196,6 +210,34 @@ def get_basic_listings():
         print('count', len(posts))
 
         return posts
+
+def upload_to_internet_archive(listing: dict):
+
+    long_url_search = re.search('(.*\/marketplace\/item\/(\d+))', listing['url'])
+    short_url = long_url_search.group(1)
+    listing_identifier = long_url_search.group(2)
+
+    images = [(str(i) + '.jpg', BytesIO(requests.get(url, stream=True).content)) for i, url in enumerate(listing['images'])]
+
+    meta_data = {
+        #'description': json.dumps(listing, indent=2),
+        #"collection": "facebook-marketplace-" + settings['vehicle'].replace(' ', '-'),
+
+        'mediatype': 'image',
+        'subject': settings['vehicle'],
+
+        'title': 'FB Marketplace' + listing_identifier + ' - ' + listing['title'],
+        'date': listing['date'],
+
+        'source': short_url
+    }
+
+    for key in listing.keys():
+        if key not in {'images', 'url', 'title'}:
+            meta_data[key] = str(listing[key])
+
+    return upload(identifier=('facebook-marketplace-item-' + listing_identifier), files=images, metadata=meta_data, access_key=settings['access-key'], secret_key=settings['secret-key'])
+    
     
 @app.post("/archive")
 def archive_listings(item: Item):
@@ -214,14 +256,22 @@ def archive_listings(item: Item):
             page.wait_for_timeout(1500)
 
             # save the listing if not already saved
-            button = page.get_by_role('button', name="Save", pressed=False)
-            if button.is_visible():
-                button.click()
-                print('saved', listing['post_url'])
+            if settings['save-to-profile']:
+                button = page.get_by_role('button', name="Save", pressed=False)
+                if button.is_visible():
+                    button.click()
+                    print('Saved', listing['post_url'])
+                else:
+                    print('Already saved', listing['post_url'])
             else:
-                print('already saved', listing['post_url'])
+                print('Skipping save', listing['post_url'])
+            
+            post = get_post_details(page)
+            print(post)
 
-            print(get_post_details(page))
+            # Save the post to internet archive
+            if settings['save-to-internet-archive']:
+                print('upload result:', upload_to_internet_archive(post))
         
         browser.close()
 
