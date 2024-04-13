@@ -14,7 +14,7 @@
 
     <button onclick="getListings()">Get listings</button>
     <button onclick="archive()">Archive</button>
-    <p id="archive-result"> google sheets formatted response here </p>
+    <p id="archive-result"> formatted response here </p>
     <div class="container-grid"> </div>
 
     <script>
@@ -31,7 +31,7 @@
             if (!response.ok) throw new Error('Network response was not ok', 'archive');
 
             response = await response.json();
-            document.getElementById('archive-result').textContent = JSON.stringify(response);
+            document.getElementById('archive-result').textContent = response['response'];
         }
     
         async function getListings() {
@@ -62,8 +62,8 @@
 
                 // Create link element for post URL
                 var link = document.createElement('a');
-                link.href = "https://facebook.com/" + listing.post_url;
                 link.textContent = "View Post";
+                link.setAttribute('onClick', `window.open("https://facebook.com/${listing.post_url}", "_blank")`);
 
                 // Create location element
                 var location = document.createElement('p');
@@ -80,16 +80,16 @@
                 container.appendChild(price);
                 container.appendChild(link);
                 container.appendChild(location);
+                container.id = `container${i}`;
+                image.id = i;
 
-                container.id = i;
-
-                container.addEventListener('click', function () {
+                image.addEventListener('click', function () {
                     if (listings[this.id].real) {
                         listings[this.id].real = false;
-                        document.getElementById(this.id).style.backgroundColor = 'red'
+                        document.getElementById(`container${this.id}`).style.backgroundColor = 'red'
                     } else {
                         listings[this.id].real = true;
-                        document.getElementById(this.id).style.backgroundColor = 'green'
+                        document.getElementById(`container${this.id}`).style.backgroundColor = 'green'
                     }
                     console.log('Container clicked!', this.id, listings[this.id].real);
                 });

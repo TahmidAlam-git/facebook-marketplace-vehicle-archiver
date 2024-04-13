@@ -2,3 +2,5 @@ auth.json
 *.cpython*
 sample*.json
 temp.pdf
+custom_output.py
+output.txt

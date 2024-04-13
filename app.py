@@ -97,13 +97,14 @@ def get_post_details(page):
 
     # get date
     result['date'] = soup_find(header, 'span', 'html-span xdj266r x11i5rnm xat24cr x1mh8g0r xexx8yu x4uap5 x18d9i69 xkhd6sd x1hl2dhg x16tdsg8 x1vvkbs')
-    date_search = re.search(r'(\d+) (hour|day|week)', result['date'])
+    date_search = re.search(r'(a|an|\d+) (hour|day|week)', result['date'])
+    val = 1 if date_search.group(1).isalpha() else date_search.group(1)
     if date_search.group(2) == 'hour':
-        result['date'] = (datetime.datetime.now() - datetime.timedelta(hours=int(date_search.group(1)))).strftime("%Y-%m-%d")
+        result['date'] = (datetime.datetime.now() - datetime.timedelta(hours=int(val))).strftime("%Y-%m-%d")
     elif date_search.group(2) == 'day':
-        result['date'] = (datetime.datetime.now() - datetime.timedelta(days=int(date_search.group(1)))).strftime("%Y-%m-%d")
+        result['date'] = (datetime.datetime.now() - datetime.timedelta(days=int(val))).strftime("%Y-%m-%d")
     elif date_search.group(2) == 'week':
-        result['date'] = (datetime.datetime.now() - datetime.timedelta(weeks=int(date_search.group(1)))).strftime("%Y-%m-%d")
+        result['date'] = (datetime.datetime.now() - datetime.timedelta(weeks=int(val))).strftime("%Y-%m-%d")
 
     # get location
     result['location'] = soup_find(header, 'span', 'x193iq5w xeuugli x13faqbe x1vvkbs x1xmvt09 x1nxh6w3 x1sibtaa xo1l8bm xi81zsa')
@@ -226,7 +227,7 @@ def upload_to_internet_archive(listing: dict):
         'mediatype': 'image',
         'subject': settings['vehicle'],
 
-        'title': 'FB Marketplace' + listing_identifier + ' - ' + listing['title'],
+        'title': 'FB Marketplace ' + listing_identifier + ' - ' + listing['title'],
         'date': listing['date'],
 
         'source': short_url
@@ -236,11 +237,17 @@ def upload_to_internet_archive(listing: dict):
         if key not in {'images', 'url', 'title'}:
             meta_data[key] = str(listing[key])
 
-    return upload(identifier=('facebook-marketplace-item-' + listing_identifier), files=images, metadata=meta_data, access_key=settings['access-key'], secret_key=settings['secret-key'])
+    print('uploading...')
+    return {'link': 'https://archive.org/details/facebook-marketplace-item-' + listing_identifier, 
+            'result': upload(identifier=('facebook-marketplace-item-' + listing_identifier), files=images, metadata=meta_data, access_key=settings['access-key'], secret_key=settings['secret-key'])
+            }
     
     
 @app.post("/archive")
 def archive_listings(item: Item):
+
+    output = ''
+
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=False)
         page = browser.new_page()
@@ -256,9 +263,11 @@ def archive_listings(item: Item):
             page.wait_for_timeout(1500)
 
             # save the listing if not already saved
+            button = page.get_by_role('button', name="Save", pressed=False)
+            button_visible = button.is_visible()
+
             if settings['save-to-profile']:
-                button = page.get_by_role('button', name="Save", pressed=False)
-                if button.is_visible():
+                if button_visible:
                     button.click()
                     print('Saved', listing['post_url'])
                 else:
@@ -270,12 +279,22 @@ def archive_listings(item: Item):
             print(post)
 
             # Save the post to internet archive
-            if settings['save-to-internet-archive']:
-                print('upload result:', upload_to_internet_archive(post))
+            if button_visible and settings['save-to-internet-archive']:
+                upload_result = upload_to_internet_archive(post)
+                print('upload result:', upload_result['result'])
+
+                # add your own custom_output.py file with the function 'def custom_output()'
+                # to make your own output
+                try:
+                    from custom_output import custom_output
+                    output += custom_output(post, upload_result['link']) + "\n"
+                except:
+                    pass
         
         browser.close()
 
-    return {'response': 'temp'}
+    print(output)
+    return {'response': output}
 
 if __name__ == '__main__':
     uvicorn.run(
