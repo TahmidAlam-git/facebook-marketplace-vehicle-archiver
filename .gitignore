@@ -1,3 +1,6 @@
 auth.json
 *.cpython*
-sample.json
+sample*.json
+temp.pdf
+custom_output.py
+output.txt

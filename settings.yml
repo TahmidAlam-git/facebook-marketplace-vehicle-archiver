@@ -1,7 +1,17 @@
 ---
-  email: email@mail.com
-  password: password
+  # Facebook login to get marketplace listings
+  email: email@gmail.com
+  password: pass
 
+  # Internet archive S3 API key for uploading
+  access-key: key
+  secret-key: key
+
+  # Program settings
+  save-to-profile: false
+  save-to-internet-archive: false
+
+  # Marketplace search settings
   vehicle: Mitsubishi Evolution
   must-contain: 
     - evo
