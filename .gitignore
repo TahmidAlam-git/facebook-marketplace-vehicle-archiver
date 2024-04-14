@@ -1,6 +1,4 @@
-auth.json
 *.cpython*
-sample*.json
-temp.pdf
+*.json
 custom_output.py
 output.txt
