@@ -11,7 +11,9 @@ from internetarchive import upload
 import requests
 from io import BytesIO
 import datetime
+from tinydb import TinyDB, Query
 
+db = TinyDB('db.json')
 
 app = FastAPI()
 
@@ -61,6 +63,9 @@ def soup_find(soup: BeautifulSoup, type: str, class_name: str):
 
 def get_post_details(page):
 
+    if 'unavailable_product' in page.url:
+        return None
+
     result = {'url': page.url, 'title': '', 'sold': False, 'year': '', 'price': '', 'date': '', 'location': '', 'mileage': '', 'color': '', 'seller': '', 'description': '', 'images': []}
 
     # open the full description
@@ -98,13 +103,16 @@ def get_post_details(page):
     # get date
     result['date'] = soup_find(header, 'span', 'html-span xdj266r x11i5rnm xat24cr x1mh8g0r xexx8yu x4uap5 x18d9i69 xkhd6sd x1hl2dhg x16tdsg8 x1vvkbs')
     date_search = re.search(r'(a|an|\d+) (hour|day|week)', result['date'])
-    val = 1 if date_search.group(1).isalpha() else date_search.group(1)
-    if date_search.group(2) == 'hour':
-        result['date'] = (datetime.datetime.now() - datetime.timedelta(hours=int(val))).strftime("%Y-%m-%d")
-    elif date_search.group(2) == 'day':
-        result['date'] = (datetime.datetime.now() - datetime.timedelta(days=int(val))).strftime("%Y-%m-%d")
-    elif date_search.group(2) == 'week':
-        result['date'] = (datetime.datetime.now() - datetime.timedelta(weeks=int(val))).strftime("%Y-%m-%d")
+    if date_search == None:
+        result['date'] = datetime.datetime.now().strftime("%Y-%m-%d")
+    else:
+        val = 1 if date_search.group(1).isalpha() else date_search.group(1)
+        if date_search.group(2) == 'hour':
+            result['date'] = (datetime.datetime.now() - datetime.timedelta(hours=int(val))).strftime("%Y-%m-%d")
+        elif date_search.group(2) == 'day':
+            result['date'] = (datetime.datetime.now() - datetime.timedelta(days=int(val))).strftime("%Y-%m-%d")
+        elif date_search.group(2) == 'week':
+            result['date'] = (datetime.datetime.now() - datetime.timedelta(weeks=int(val))).strftime("%Y-%m-%d")
 
     # get location
     result['location'] = soup_find(header, 'span', 'x193iq5w xeuugli x13faqbe x1vvkbs x1xmvt09 x1nxh6w3 x1sibtaa xo1l8bm xi81zsa')
@@ -153,7 +161,11 @@ def get_matching_posts(page):
             location = listing.find('span', 'x1lliihq x6ikm8r x10wlt62 x1n2onr6 xlyipyv xuxw1ft x1j85h84').text
             
             # keep the posts that match
-            if all(string.lower() in title.lower() for string in settings['must-contain']) and all(string.lower() not in title.lower() for string in settings['dont-contain']):
+            if (
+                all(string.lower() in title.lower() for string in settings['must-contain']) and
+                all(string.lower() not in title.lower() for string in settings['dont-contain']) and 
+                db.search(Query()['identity'] == re.search(r'marketplace\/item\/(\d+)', post_url).group(1)) == []
+            ):
                 parsed.append({
                     'image': image,
                     'title': title,
@@ -161,6 +173,7 @@ def get_matching_posts(page):
                     'post_url': post_url,
                     'location': location
                 })
+
         except Exception as e:
             print("something went wrong with extracting data from the listing:", e)
 
@@ -214,7 +227,7 @@ def get_basic_listings():
 
 def upload_to_internet_archive(listing: dict):
 
-    long_url_search = re.search('(.*\/marketplace\/item\/(\d+))', listing['url'])
+    long_url_search = re.search(r'(.*\/marketplace\/item\/(\d+))', listing['url'])
     short_url = long_url_search.group(1)
     listing_identifier = long_url_search.group(2)
 
@@ -238,10 +251,21 @@ def upload_to_internet_archive(listing: dict):
             meta_data[key] = str(listing[key])
 
     print('uploading...')
-    return {'link': 'https://archive.org/details/facebook-marketplace-item-' + listing_identifier, 
-            'result': upload(identifier=('facebook-marketplace-item-' + listing_identifier), files=images, metadata=meta_data, access_key=settings['access-key'], secret_key=settings['secret-key'])
-            }
+
+    try:
+        # if uploading all images is successful update the db
+        upload_result = upload(identifier=('facebook-marketplace-item-' + listing_identifier), files=images, metadata=meta_data, access_key=settings['access-key'], secret_key=settings['secret-key'])
+        if all(result.status_code == 200 for result in upload_result):
+            print('db updated')
+            db.update({'archived': True}, (Query()['identity'] == listing_identifier))
+
+        return {'link': 'https://archive.org/details/facebook-marketplace-item-' + listing_identifier, 
+                'result': 'success'}
     
+    except Exception as e:
+        print('Archiving error:', e)
+        return {'link': 'None', 
+                'result': 'fail'}
     
 @app.post("/archive")
 def archive_listings(item: Item):
@@ -278,8 +302,16 @@ def archive_listings(item: Item):
             post = get_post_details(page)
             print(post)
 
+            # save the post in the db
+            if post != None:
+                identity = re.search(r'marketplace\/item\/(\d+)', post['url']).group(1)                
+                db.upsert({'identity': identity,
+                           'archived': False,
+                           'details': post},
+                           (Query()['identity'] == identity))
+
             # Save the post to internet archive
-            if button_visible and settings['save-to-internet-archive']:
+            if post != None and button_visible and settings['save-to-internet-archive']:
                 upload_result = upload_to_internet_archive(post)
                 print('upload result:', upload_result['result'])
 

@@ -4,3 +4,4 @@ bs4==0.0.2
 fastapi==0.110.1
 uvicorn==0.29.0
 internetarchive==3.7.0
+tinydb==4.8.0
