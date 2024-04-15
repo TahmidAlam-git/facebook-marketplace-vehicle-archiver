@@ -424,22 +424,29 @@ def archive_listings(item: Item):
                            'archived': False,
                            'details': post},
                            (Query()['identity'] == identity))
-
-            # Save the post to internet archive
-            if post != None and button_visible and settings['save-to-internet-archive']:
-                upload_result = upload_to_internet_archive(post)
-                print('upload result:', upload_result['result'])
-
-                # add your own custom_output.py file with the function 'def custom_output()'
-                # to make your own output
-                try:
-                    from custom_output import custom_output
-                    output += custom_output(post, upload_result['link']) + "\n"
-                except:
-                    pass
-        
+                print(identity, 'saved to db')
+            else:
+                print('Invalid post, did not save to db')
+                
         browser.close()
 
+    # get all entries that aren't archived
+    if settings['save-to-internet-archive']:
+        for entry in db.search(Query()['archived'] == False):
+            post = entry['details']
+            upload_result = upload_to_internet_archive(post)
+            print('upload result:', upload_result['result'])
+
+            # add your own custom_output.py file with the function
+            # 'def custom_output()' to make your own output
+            try:
+                from custom_output import custom_output
+                output += "REMOVE " + custom_output(post, upload_result['link']) + "\n"
+            except:
+                pass
+    else:
+        output = 'Archiving skipped'
+    
     print(output)
     return {'response': output}
 
