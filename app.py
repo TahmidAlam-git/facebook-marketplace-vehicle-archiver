@@ -185,7 +185,7 @@ def get_post_details(page):
     if 'unavailable_product' in page.url:
         return None
 
-    result = {'url': page.url, 
+    result = {'url': '', 
               'title': '', 
               'sold': False, 
               'year': '', 
@@ -205,6 +205,10 @@ def get_post_details(page):
         page.wait_for_timeout(500)
 
     soup = BeautifulSoup(page.content(), 'html.parser')
+
+    # get url
+    url = re.search(r'(.*\/marketplace\/item\/(\d+))', page.url).group(1)
+    result['url'] = url
 
     # Get description
     result['description'] = soup_find(soup, 
