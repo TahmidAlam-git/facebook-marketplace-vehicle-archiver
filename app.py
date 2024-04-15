@@ -97,12 +97,12 @@ def get_matching_posts(page):
                                          'xh8yej3'))['src']
             title = listing.find('span', 
                                  'x1lliihq x6ikm8r x10wlt62 x1n2onr6').text
-            price = listing.find('span', 
+            price = listing.find_all('span', 
                                  ('x193iq5w xeuugli x13faqbe x1vvkbs '
                                   'x1xmvt09 x1lliihq x1s928wv xhkezso '
                                   'x1gmr53x x1cpjm7i x1fgarty x1943h6x '
                                   'xudqn12 x676frb x1lkfr7t x1lbecb7 '
-                                  'x1s688f xzsf02u')).text
+                                  'x1s688f xzsf02u'))[-1].text
             post_url = listing.find('a', 
                                     class_=('x1i10hfl xjbqb8w x1ejq31n xd10rxx '
                                             'x1sy0etr x17r0tee x972fbf xcfux6l '
