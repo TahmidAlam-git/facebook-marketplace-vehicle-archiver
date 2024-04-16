@@ -3,6 +3,7 @@ import re
 import json
 import requests
 import datetime
+import threading
 from io import BytesIO
 
 # Third party libraries
@@ -23,6 +24,7 @@ BASE_URL = 'https://www.facebook.com'
 BASE_MARKETPLACE_URL = BASE_URL + '/marketplace/item/'
 
 # Global
+lock = threading.Lock()
 db = TinyDB('db.json')
 app = FastAPI()
 
@@ -360,7 +362,7 @@ def upload_to_internet_archive(listing: dict):
         if key not in {'images', 'url', 'title'}:
             meta_data[key] = str(listing[key])
 
-    print('uploading...')
+    print('uploading for', listing_identifier, '...')
     try:
         # if uploading all images is successful update the db
         upload_result = upload(identifier=('facebook-marketplace-item-' + listing_identifier), 
@@ -370,8 +372,10 @@ def upload_to_internet_archive(listing: dict):
                                secret_key=settings['secret-key'])
         
         if all(result.status_code == 200 for result in upload_result):
+            lock.acquire()
             db.update({'archived': True}, (Query()['identity'] == listing_identifier))
-            print('db updated')
+            print('db updated for', listing_identifier)
+            lock.release()
 
         return {'link': 'https://archive.org/details/facebook-marketplace-item-' + listing_identifier, 
                 'result': 'success'}
@@ -424,22 +428,49 @@ def archive_listings(item: Item):
                            'archived': False,
                            'details': post},
                            (Query()['identity'] == identity))
-
-            # Save the post to internet archive
-            if post != None and button_visible and settings['save-to-internet-archive']:
-                upload_result = upload_to_internet_archive(post)
-                print('upload result:', upload_result['result'])
-
-                # add your own custom_output.py file with the function 'def custom_output()'
-                # to make your own output
-                try:
-                    from custom_output import custom_output
-                    output += custom_output(post, upload_result['link']) + "\n"
-                except:
-                    pass
-        
+                print(identity, 'saved to db')
+            else:
+                print('Invalid post, did not save to db')
+                
         browser.close()
 
+    # get all entries that aren't archived
+    if settings['save-to-internet-archive']:
+        entries = db.search(Query()['archived'] == False)
+        threads = [None] * len(entries)
+        results = [None] * len(entries)
+
+        # make the threads
+        for i in range(len(entries)):
+            def thread_func(entries, results, i):
+                results[i] = upload_to_internet_archive(entries[i]['details'])
+            threads[i] = threading.Thread(target=thread_func, 
+                                          args=(entries, results, i))
+        
+        # start the threads
+        for thread in threads:
+            thread.start()
+
+        # join the threads
+        for thread in threads:
+            thread.join()
+
+        # use the results
+        for i in range(len(entries)):
+            post = entries[i]['details']
+            result = results[i]
+            print('upload result:', result)
+
+            # add your own custom_output.py file with the function
+            # 'def custom_output()' to make your own output
+            try:
+                from custom_output import custom_output
+                output += custom_output(post, result['link']) + "\n"
+            except:
+                pass
+    else:
+        output = 'Archiving skipped'
+    
     print(output)
     return {'response': output}
 
