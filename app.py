@@ -106,17 +106,10 @@ def get_matching_posts(page):
                                   'xudqn12 x676frb x1lkfr7t x1lbecb7 '
                                   'x1s688f xzsf02u'))[-1].text
             post_url = listing.find('a', 
-                                    class_=('x1i10hfl xjbqb8w x1ejq31n xd10rxx '
-                                            'x1sy0etr x17r0tee x972fbf xcfux6l '
-                                            'x1qhh985 xm0m39n x9f619 x1ypdohk '
-                                            'xt0psk2 xe8uvvx xdj266r x11i5rnm '
-                                            'xat24cr x1mh8g0r xexx8yu x4uap5 '
-                                            'x18d9i69 xkhd6sd x16tdsg8 x1hl2dhg '
-                                            'xggy1nq x1a2a7pz x1heor9g x1lku1pv'))['href']
+                                    class_=('x1i10hfl xjbqb8w x1ejq31n xd10rxx x1sy0etr x17r0tee x972fbf xcfux6l x1qhh985 xm0m39n x9f619 x1ypdohk xt0psk2 xe8uvvx xdj266r x11i5rnm xat24cr x1mh8g0r xexx8yu x4uap5 x18d9i69 xkhd6sd x16tdsg8 x1hl2dhg xggy1nq x1a2a7pz x1heor9g x1sur9pj xkrqix3 x1lku1pv'))['href']
             location = listing.find('span', 
                                     ('x1lliihq x6ikm8r x10wlt62 x1n2onr6 '
                                      'xlyipyv xuxw1ft x1j85h84')).text
-            
             # keep the posts that match
             if (
                 all(string.lower() in title.lower() for string in settings['must-contain']) and
@@ -130,6 +123,8 @@ def get_matching_posts(page):
                     'post_url': post_url,
                     'location': location
                 })
+            else:
+                print('listing didnt match key words, skipping')
 
         except Exception as e:
             print("something went wrong with extracting data from the listing:", e)
@@ -201,10 +196,13 @@ def get_post_details(page):
               'images': []}
 
     # Open the full description
-    description_button = page.get_by_role("button", name="See more")
-    if description_button.is_visible():
-        description_button.click()
-        page.wait_for_timeout(500)
+    try:
+        description_button = page.get_by_role("button", name="See more")
+        if description_button.is_visible():
+            description_button.click()
+            page.wait_for_timeout(500)
+    except Exception as e:
+        print('couldnt open full description for', page.url, 'due to exception:', e)
 
     soup = BeautifulSoup(page.content(), 'html.parser')
 
@@ -263,28 +261,33 @@ def get_post_details(page):
         result['price'] = price.group(1) if price else ''
 
     # get date
-    result['date'] = soup_find(header, 
-                               'span', 
-                               ('html-span xdj266r x11i5rnm xat24cr x1mh8g0r '
-                                'xexx8yu x4uap5 x18d9i69 xkhd6sd '
-                                'x1hl2dhg x16tdsg8 x1vvkbs'), 
-                                'a minute ago')
-    date_search = re.search(r'(a|an|\d+) (hour|day|week|minute)', result['date'])
-    value = 1 if date_search.group(1).isalpha() else date_search.group(1)
-    unit = date_search.group(2)
-    if unit == 'minute':
-        result['date'] = (datetime.datetime.now() - 
-                            datetime.timedelta(minutes=int(value)))
-    elif unit == 'hour':
-        result['date'] = (datetime.datetime.now() - 
-                            datetime.timedelta(hours=int(value)))
-    elif unit == 'day':
-        result['date'] = (datetime.datetime.now() - 
-                            datetime.timedelta(days=int(value)))
-    elif unit == 'week':
-        result['date'] = (datetime.datetime.now() - 
-                            datetime.timedelta(weeks=int(value)))
-    result['date'] = result['date'].strftime("%Y-%m-%d")
+    try:
+        result['date'] = soup_find(header, 
+                                'span', 
+                                ('html-span xdj266r x11i5rnm xat24cr x1mh8g0r '
+                                    'xexx8yu x4uap5 x18d9i69 xkhd6sd '
+                                    'x1hl2dhg x16tdsg8 x1vvkbs'), 
+                                    'a minute ago')
+        date_search = re.search(r'(a|an|\d+) (hour|day|week|minute)', result['date'])
+        value = 1 if date_search.group(1).isalpha() else date_search.group(1)
+        unit = date_search.group(2)
+        if unit == 'minute':
+            result['date'] = (datetime.datetime.now() - 
+                                datetime.timedelta(minutes=int(value)))
+        elif unit == 'hour':
+            result['date'] = (datetime.datetime.now() - 
+                                datetime.timedelta(hours=int(value)))
+        elif unit == 'day':
+            result['date'] = (datetime.datetime.now() - 
+                                datetime.timedelta(days=int(value)))
+        elif unit == 'week':
+            result['date'] = (datetime.datetime.now() - 
+                                datetime.timedelta(weeks=int(value)))
+        result['date'] = result['date'].strftime("%Y-%m-%d")
+    except Exception as e:
+        print('something went wrong with trying to get the date with exception',
+              e, 'from url', url, '; using current date instead')
+        result['date'] = (datetime.datetime.now()).strftime("%Y-%m-%d")
 
     # get location
     result['location'] = soup_find(header, 
@@ -335,6 +338,18 @@ def get_post_details(page):
         image = soup.find('img', class_='xz74otr')
         result['images'] = [image['src']] if image else []
 
+    for i, image_url in enumerate(result['images']):
+        try:
+            identity = re.search(r'marketplace\/item\/(\d+)', result['url']).group(1)  
+            location = './images/' + identity + '_' + str(i) + '.jpg'
+            img_data = requests.get(image_url).content
+            with open(location, 'wb') as handler:
+                handler.write(img_data)
+                result['images'][i] = location
+
+        except Exception as e:
+            print("Something went wrong with downloading the image", e)
+            
     return result
 
 # Upload the post details and images to internet archive

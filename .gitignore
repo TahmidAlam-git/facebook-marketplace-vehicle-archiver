@@ -2,3 +2,4 @@
 *.json
 custom_output.py
 output.txt
+images/*.jpg
